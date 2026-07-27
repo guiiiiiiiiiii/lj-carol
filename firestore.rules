@@ -1,0 +1,42 @@
+rules_version = '2';
+
+/*
+  Regras de segurança do catálogo.
+
+  Leitura: liberada (o catálogo é público).
+  Escrita: só para contas cadastradas na coleção "admins".
+
+  Como liberar a dona da loja:
+    1. Authentication > Users > "Adicionar usuário" (e-mail + senha)
+    2. Copie o UID gerado
+    3. Firestore > coleção "admins" > novo documento com ID = esse UID
+       (pode ter um campo qualquer, ex.: email: "dona@loja.com")
+
+  Publicar:  firebase deploy --only firestore:rules
+*/
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ehAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // catálogo público
+    match /produtos/{id}   { allow read: if true; allow write: if ehAdmin(); }
+    match /fotos/{id}      { allow read: if true; allow write: if ehAdmin(); }
+    match /categorias/{id} { allow read: if true; allow write: if ehAdmin(); }
+    match /config/{id}     { allow read: if true; allow write: if ehAdmin(); }
+
+    // lista de administradoras: cada uma só enxerga o próprio registro,
+    // e a inclusão é feita à mão pelo console (nunca pelo site).
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // qualquer outra coleção fica bloqueada
+    match /{document=**} { allow read, write: if false; }
+  }
+}
